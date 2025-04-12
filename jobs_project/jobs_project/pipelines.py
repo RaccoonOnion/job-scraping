@@ -12,6 +12,55 @@ import sys
 # Add the root folder to the path
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))) not necessary in docker
 from infra.mongodb_connector import MongoDBConnector
+from infra.redis_connector import RedisConnector
+from scrapy.exceptions import DropItem
+
+class RedisDeduplicationPipeline:
+    """Pipeline for filtering out items seen in previous crawls using Redis."""
+
+    redis_set_key = os.environ.get('REDIS_SET_KEY', 'processed_job_ids') # Redis set name
+
+    def open_spider(self, spider):
+        spider.logger.info("Opening Redis connection for deduplication pipeline.")
+        try:
+            self.connector = RedisConnector()
+            if not self.connector.client: # Check if connection failed in __init__
+                 spider.logger.warning("Redis client not available in deduplication pipeline. Deduplication disabled.")
+                 self.connector = None # Ensure it's None to skip processing
+        except ConnectionError as e:
+             spider.logger.error(f"Failed to open Redis connection: {e}")
+             self.connector = None
+
+    def close_spider(self, spider):
+         spider.logger.info("Closing Redis connection for deduplication pipeline.")
+         if self.connector:
+            self.connector.close_connection()
+
+    def process_item(self, item, spider):
+        if not self.connector:
+            spider.logger.debug("Redis connector not available, skipping deduplication.")
+            return item # Pass item through if Redis isn't working
+
+        adapter = ItemAdapter(item)
+        item_id = adapter.get('req_id') # Use 'req_id' or another unique field
+
+        if not item_id:
+            spider.logger.warning(f"Item missing unique ID ('req_id'): {item}. Cannot perform deduplication.")
+            return item # Pass through items without an ID
+
+        # Check if item ID exists in the Redis set
+        already_processed = self.connector.check_if_exists(self.redis_set_key, item_id)
+
+        if already_processed:
+            spider.logger.info(f"Item already processed (found in Redis): {item_id}")
+            raise DropItem(f"Duplicate item found: {item_id}")
+        else:
+            # Add item ID to Redis set and pass item to next pipeline
+            self.connector.add_item(self.redis_set_key, item_id)
+            spider.logger.debug(f"Added item to Redis set: {item_id}")
+            return item
+
+
 class MongoPipeline:
     collection_name = os.environ.get('MONGO_COLLECTION', 'raw_jobs') # Collection name
 

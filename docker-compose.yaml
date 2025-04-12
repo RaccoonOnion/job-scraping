@@ -14,10 +14,13 @@ services:
       - MONGO_DB_NAME=jobs_db
       - MONGO_COLLECTION=raw_jobs
       # Add REDIS_URL here later if you implement the Redis part
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_SET_KEY=redis://redis:6379/0
       # - REDIS_URL=redis://redis:6379
     # Make this service depend on the mongo service starting first
     depends_on:
       - mongo
+      - redis
     # Keep the container running. We'll use 'docker-compose exec' to run commands.
     # Use tail -f /dev/null for Linux/macOS or timeout /t -1 for Windows base images if needed.
     command: tail -f /dev/null
@@ -34,12 +37,15 @@ services:
     # Optional: Add healthcheck for better dependency management if needed
 
   # Redis Service (Optional - uncomment if/when you implement Redis)
-  # redis:
-  #   image: redis:latest
-  #   container_name: redis
-  #   ports:
-  #     - "6379:6379"
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes: # Optional: Add volume for persistence if needed
+      - redis_data:/data
 
 # Define the named volume for MongoDB data persistence
 volumes:
   mongo_data:
+  redis_data: # Optional: Add if you added the volume above

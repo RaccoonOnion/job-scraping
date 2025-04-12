@@ -63,8 +63,9 @@ ROBOTSTXT_OBEY = True
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-   "jobs_project.pipelines.MongoPipeline": 300, # Make sure the path matches your class
-#    "jobs_project.pipelines.AnotherPipeline": 400, # Example if you add more
+   # Lower number runs first
+   "jobs_project.pipelines.RedisDeduplicationPipeline": 100,
+   "jobs_project.pipelines.MongoPipeline": 300,
 }
 
 # You might also want to set environment variables here if not using docker-compose env vars

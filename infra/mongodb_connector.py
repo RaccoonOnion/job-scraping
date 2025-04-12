@@ -43,23 +43,30 @@ class MongoDBConnector:
         collection = self.get_collection(collection_name)
         if collection is not None:
             try:
-                # Basic duplicate check example (using req_id as unique identifier)
-                # Adjust the unique key based on your data if req_id isn't always unique or present
-                if 'req_id' in item_dict and item_dict['req_id']:
-                    existing_item = collection.find_one({'req_id': item_dict['req_id']})
-                    if existing_item:
-                        print(f"Duplicate item skipped: {item_dict.get('req_id')}")
-                        return None # Indicate skipped duplicate
-                    else:
-                       result = collection.insert_one(item_dict)
-                       print(f"Inserted item with ID: {result.inserted_id}")
-                       return result.inserted_id
-                else:
-                    # If no unique ID, just insert (or add different handling)
-                    print("Warning: Inserting item without a unique req_id for duplicate check.")
-                    result = collection.insert_one(item_dict)
-                    print(f"Inserted item with ID: {result.inserted_id}")
-                    return result.inserted_id
+                # --- Remove the find_one check ---
+                # if 'req_id' in item_dict and item_dict['req_id']:
+                #    existing_item = collection.find_one({'req_id': item_dict['req_id']})
+                #    if existing_item:
+                #        print(f"Duplicate item skipped: {item_dict.get('req_id')}")
+                #        return None # Indicate skipped duplicate
+                #    else:
+                #       result = collection.insert_one(item_dict) # Just insert
+                #       print(f"Inserted item with ID: {result.inserted_id}")
+                #       return result.inserted_id
+                # else:
+                #    print("Warning: Inserting item without a unique req_id for duplicate check.")
+                #    result = collection.insert_one(item_dict) # Just insert
+                #    print(f"Inserted item with ID: {result.inserted_id}")
+                #    return result.inserted_id
+                # --- End Remove ---
+
+                # --- Simplified Logic: Just insert the dictionary ---
+                result = collection.insert_one(item_dict)
+                # Optional: Add logging back if desired, but no duplicate check needed here
+                # print(f"Inserted item with ID: {result.inserted_id}")
+                return result.inserted_id
+                # --- End Simplified Logic ---
+
             except Exception as e:
                 print(f"Error inserting item into {collection_name}: {e}")
                 # Handle insertion error (log it, etc.)
