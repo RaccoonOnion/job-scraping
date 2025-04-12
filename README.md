@@ -2,7 +2,7 @@
 
 ## Demo Video
 
-* **Link:** [Placeholder for YouTube Demo Video Link Here]
+* **Link:** [YouTube Video Demo: Check it out!](https://youtu.be/kXQI1XvLFTc)
 
 *(Please replace the placeholder above with the actual link to your ~2 minute demo video as required by the project description*
 
