@@ -1,149 +1,117 @@
 # In query.py
 import csv
 import os
+import argparse # <-- Import argparse
 from infra.mongodb_connector import MongoDBConnector
-from datetime import datetime # Optional: If you want to timestamp the filename
+from datetime import datetime
 
-def export_jobs_to_csv():
+def export_jobs_to_csv(args):
     """
-    Connects to MongoDB, fetches job data, and exports it to a CSV file.
+    Connects to MongoDB, fetches job data based on command-line arguments,
+    and exports it to a CSV file.
     """
     print("Connecting to MongoDB...")
+    connector = None # Initialize connector to None
     try:
         connector = MongoDBConnector()
         collection_name = os.environ.get('MONGO_COLLECTION', 'raw_jobs')
         print(f"Fetching data from collection: {collection_name}")
 
-        # --- Example 1: Fetch ALL data (using the reusable find_all) ---
-        print(f"Fetching ALL data from collection: {collection_name}")
-        all_jobs_data = connector.find_all(collection_name)
-        print(f"Fetched {len(all_jobs_data)} total documents.")
-        # You could export this to 'all_jobs.csv' for demonstration
+        # --- Determine Query, Projection, Headers based on args ---
+        mongo_query = {}
+        mongo_projection = None
+        output_filename = args.output if args.output else 'final_jobs.csv' # Use provided filename or default
+        headers = [] # Initialize empty headers list
+
+        print(f"\nExecuting query type: {args.query_type}")
+
+        if args.query_type == 'all':
+            print("Query: Fetching all documents, all fields.")
+            jobs_data = connector.find_all(collection_name) # Query = {} implicitly
+            # Define headers for 'all' - should match your Item fields
+            headers = [
+                '_id', 'req_id', 'title', 'description',
+                'street_address', 'city', 'state', 'country_code', 'postal_code',
+                'latitude', 'longitude', 'apply_url', 'update_date',
+                'create_date', 'source_file' # Adjust as per your items.py
+            ]
+            if not args.output: # If no output filename specified, use a default for this query type
+                 output_filename = 'final_all_jobs.csv'
+
+        elif args.query_type == 'state':
+            if not args.state:
+                print("Error: --state argument is required for query type 'state'")
+                return
+            target_state = args.state
+            print(f"Query: Fetching all fields for state: {target_state}")
+            mongo_query = {'state': target_state}
+            # Example using the specific reusable method:
+            # jobs_data = connector.find_jobs_by_state(collection_name, target_state)
+            # Or using the generic find_all:
+            jobs_data = connector.find_all(collection_name, query=mongo_query)
+            # Define headers for 'state' (same as 'all' in this case)
+            headers = [
+                '_id', 'req_id', 'title', 'description',
+                'street_address', 'city', 'state', 'country_code', 'postal_code',
+                'latitude', 'longitude', 'apply_url', 'update_date',
+                'create_date', 'source_file' # Adjust as per your items.py
+            ]
+            if not args.output:
+                 output_filename = f'final_{target_state.lower()}_jobs.csv'
 
 
-        # --- Example 2: Fetch only jobs from 'Georgia' (Filter) ---
-        target_state = 'Georgia'
-        print(f"\nFetching only jobs from {target_state}...")
-        georgia_query = {'state': target_state}
-        georgia_jobs_data = connector.find_all(collection_name, query=georgia_query)
-        print(f"Fetched {len(georgia_jobs_data)} documents for {target_state}.")
-        # You could export this to 'georgia_jobs.csv'
+        elif args.query_type == 'state_partial':
+            if not args.state:
+                print("Error: --state argument is required for query type 'state_partial'")
+                return
+            target_state = args.state
+            print(f"Query: Fetching Title, City, State for state: {target_state}")
+            mongo_query = {'state': target_state}
+            mongo_projection = {'title': 1, 'city': 1, 'state': 1, '_id': 0}
+            jobs_data = connector.find_all(
+                collection_name,
+                query=mongo_query,
+                projection=mongo_projection
+            )
+            # Define headers explicitly matching the projection
+            headers = ['title', 'city', 'state']
+            if not args.output:
+                 output_filename = f'final_{target_state.lower()}_jobs_partial.csv'
 
-
-        # --- Example 3: Fetch only jobs from 'Georgia' (using specific reusable method) ---
-        print(f"\nFetching only jobs from {target_state} using specific method...")
-        georgia_jobs_data_reusable = connector.find_jobs_by_state(collection_name, target_state)
-        print(f"Fetched {len(georgia_jobs_data_reusable)} documents for {target_state} via reusable method.")
-        # This data should be the same as Example 2
-
-
-        # --- Example 4: Fetch only Title, City, State for Georgia jobs (Filter + Projection) ---
-        print(f"\nFetching specific fields (Title, City, State) for {target_state} jobs...")
-        georgia_projection = {
-            'title': 1,      # Include title field
-            'city': 1,       # Include city field
-            'state': 1,      # Include state field
-            '_id': 0         # Exclude the default _id field
-        }
-        partial_georgia_jobs_data = connector.find_all(
-            collection_name,
-            query=georgia_query,
-            projection=georgia_projection
-        )
-        print(f"Fetched {len(partial_georgia_jobs_data)} partial documents for {target_state}.")
-
-        # --- CSV Export (Choose which data you want to export) ---
-        # Decide which dataset you want to write to final_jobs.csv
-        # Let's export the partial georgia data for this example
-        jobs_to_export = partial_georgia_jobs_data
-        output_filename = 'final_georgia_jobs_partial.csv' # Adjust filename maybe
-
-        if not jobs_to_export:
-            print("No data selected for export.")
-            # Close connection and return if needed
-            # connector.close_connection()
-            # return
         else:
-            print(f"\nExporting selected data ({len(jobs_to_export)} documents) to {output_filename}...")
-            # Define headers EXPLICITLY based on your projection
-            headers = ['title', 'city', 'state'] # Must match the keys included in the projection
+            print(f"Error: Unknown query type '{args.query_type}'")
+            return
 
-            try:
-                with open(output_filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    # Use DictWriter - it handles missing keys if a doc is different
-                    writer = csv.DictWriter(csvfile, fieldnames=headers, extrasaction='ignore')
-                    writer.writeheader()
-                    for job in jobs_to_export:
-                        writer.writerow(job)
-                print(f"Successfully exported data to {output_filename}")
-            except IOError as e:
-                 print(f"Error writing CSV file: {e}")
-            except Exception as e:
-                 print(f"An unexpected error occurred during CSV export: {e}")
+        # --- Proceed with CSV Export ---
+        if not jobs_data:
+            print("No data matched the query criteria.")
+            return
 
+        print(f"Fetched {len(jobs_data)} documents.")
+        print(f"Exporting selected data to {output_filename}...")
 
-        # Fetch all documents using the connector's method
-        # Add projection={} if you only want specific fields
-        # jobs_data = connector.find_all(collection_name)
+        if not headers:
+             print("Error: CSV headers were not defined for the selected query.")
+             return
 
-        # if not jobs_data:
-        #     print("No data found in MongoDB collection.")
-        #     return
-
-        # print(f"Fetched {len(jobs_data)} documents.")
-
-        # --- CSV Export ---
-        # output_filename = 'final_jobs.csv'
-        # print(f"Exporting data to {output_filename}...")
-
-        # Define CSV headers - Use keys from your JobsProjectItem or MongoDB docs
-        # It's good practice to get headers dynamically or define them explicitly
-        # Let's try getting them from the first document, assuming all docs have similar structure
-        # if jobs_data:
-        #     # Be careful: MongoDB documents might not have consistent fields!
-        #     # It's safer to define headers explicitly based on your Item definition.
-        #     # Example explicit headers (adjust based on your items.py):
-        #     headers = [
-        #         '_id', # MongoDB default ID
-        #         'req_id',
-        #         'title',
-        #         'description',
-        #         # 'location_name',
-        #         'street_address',
-        #         'city',
-        #         'state',
-        #         'country_code',
-        #         'postal_code',
-        #         'latitude',
-        #         'longitude',
-        #         'apply_url',
-        #         'update_date',
-        #         'create_date',
-        #         'source_file'
-        #         # Add all other fields from your JobsProjectItem
-        #     ]
-            # Fallback in case the first document is missing many keys:
-            # headers = list(jobs_data[0].keys())
-
-
-            # try:
-            #     with open(output_filename, 'w', newline='', encoding='utf-8') as csvfile:
-            #         writer = csv.DictWriter(csvfile, fieldnames=headers, extrasaction='ignore') # 'ignore' skips fields not in headers
-
-            #         writer.writeheader()
-            #         for job in jobs_data:
-            #             writer.writerow(job)
-
-            #     print(f"Successfully exported data to {output_filename}")
-
-            # except IOError as e:
-            #      print(f"Error writing CSV file: {e}")
-            # except Exception as e:
-            #      print(f"An unexpected error occurred during CSV export: {e}")
-
-        # else:
-        #      print("No data fetched, CSV file not created.")
-
+        try:
+            with open(output_filename, 'w', newline='', encoding='utf-8') as csvfile:
+                # Use DictWriter - handles missing keys if 'ignore' is used
+                writer = csv.DictWriter(csvfile, fieldnames=headers, extrasaction='ignore')
+                writer.writeheader()
+                for job in jobs_data:
+                    # Ensure date fields are formatted nicely for CSV if they are datetime objects
+                    # This assumes date parsing was done in the spider
+                    if 'create_date' in job and isinstance(job['create_date'], datetime):
+                         job['create_date'] = job['create_date'].isoformat()
+                    if 'update_date' in job and isinstance(job['update_date'], datetime):
+                         job['update_date'] = job['update_date'].isoformat()
+                    writer.writerow(job)
+            print(f"Successfully exported data to {output_filename}")
+        except IOError as e:
+             print(f"Error writing CSV file: {e}")
+        except Exception as e:
+             print(f"An unexpected error occurred during CSV export: {e}")
 
     except ConnectionError as e:
         print(f"Database connection failed: {e}")
@@ -151,9 +119,34 @@ def export_jobs_to_csv():
         print(f"An error occurred: {e}")
     finally:
         # Ensure connection is closed if it was opened
-        if 'connector' in locals() and connector:
+        if connector:
             print("Closing MongoDB connection.")
             connector.close_connection()
 
 if __name__ == "__main__":
-    export_jobs_to_csv()
+    # --- Argument Parsing Setup ---
+    parser = argparse.ArgumentParser(description="Query MongoDB job data and export to CSV.")
+
+    parser.add_argument(
+        '--query-type',
+        type=str,
+        default='all', # Default to fetching all if not specified
+        choices=['all', 'state', 'state_partial'], # Allowed query types
+        help="Type of query to execute ('all', 'state', 'state_partial'). Default: 'all'."
+    )
+    parser.add_argument(
+        '--state',
+        type=str,
+        help="Specify the state to filter by (required for query types 'state' and 'state_partial')."
+    )
+    parser.add_argument(
+        '--output',
+        type=str,
+        help="Optional: Specify the output CSV filename."
+    )
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Run the export function with parsed arguments
+    export_jobs_to_csv(args)

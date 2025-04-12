@@ -8,6 +8,7 @@
 from itemadapter import ItemAdapter
 import os
 import sys
+from pymongo.errors import PyMongoError
 
 # Add the root folder to the path
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))) not necessary in docker
@@ -80,19 +81,28 @@ class MongoPipeline:
             self.connector.close_connection()
 
     def process_item(self, item, spider):
-        if self.connector:
-            adapter = ItemAdapter(item)
-            item_dict = adapter.asdict()
-            # Insert the item using the connector's method
+        if not self.connector:
+            spider.logger.error("MongoDB connector not available. Dropping item.")
+            raise DropItem("Item skipped: MongoDB connection unavailable") # Make failure explicit
+
+        adapter = ItemAdapter(item)
+        item_dict = adapter.asdict()
+
+        # Optional: Add basic validation here
+        if not adapter.get('title') or not adapter.get('req_id'):
+             spider.logger.warning(f"Item missing required fields (title or req_id): {adapter.get('req_id')}")
+             raise DropItem("Missing required fields for MongoDB storage")
+
+        try:
             insert_result = self.connector.insert_item(self.collection_name, item_dict)
-            if insert_result is None:
-                 spider.logger.warning(f"Item insertion failed or skipped for: {item_dict.get('req_id')}")
-                 # Optionally raise DropItem here if insertion failure is critical
-                 # from scrapy.exceptions import DropItem
-                 # raise DropItem(f"Failed to insert item {item_dict.get('req_id')}")
-            else:
-                 spider.logger.info(f"Item inserted/handled for req_id: {item_dict.get('req_id')}")
-        else:
-             spider.logger.error("MongoDB connector not available. Cannot process item.")
-             # Optionally raise DropItem here
-        return item # Always return item for other pipelines
+            # Connector would raise exception on failure now, so no need to check return value 'None' explicitly for errors
+            spider.logger.info(f"Item inserted for req_id: {item_dict.get('req_id')}")
+
+        except PyMongoError as e: # Catch specific DB errors
+            spider.logger.error(f"MongoDB insertion failed for req_id {item_dict.get('req_id')}: {e}")
+            raise DropItem(f"MongoDB insertion failed: {e}") # Drop item on DB error
+        except Exception as e: # Catch unexpected errors
+             spider.logger.critical(f"Unexpected error during MongoDB insertion for req_id {item_dict.get('req_id')}: {e}", exc_info=True)
+             raise DropItem(f"Unexpected error during MongoDB insertion: {e}") # Or maybe CloseSpider
+
+        return item

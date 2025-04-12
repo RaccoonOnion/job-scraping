@@ -11,8 +11,8 @@ WORKDIR /usr/src/app
 # Set the Python path so imports work relative to the WORKDIR
 ENV PYTHONPATH /usr/src/app
 
-# Install system dependencies if needed (might be necessary for some Scrapy dependencies)
-# RUN apt-get update && apt-get install -y --no-install-recommends some-package && rm -rf /var/lib/apt/lists/*
+# Create log directory within the container
+RUN mkdir logs
 
 # Install Python dependencies
 # Copy only requirements first to leverage Docker cache

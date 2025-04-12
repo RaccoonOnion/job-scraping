@@ -1,53 +1,35 @@
 import json
-import os
 import scrapy
+import os
 from jobs_project.items import JobsProjectItem
-
+from datetime import datetime
 
 class JobSpider(scrapy.Spider):
     name = 'job_spider'
-    # custom_settings should point to your actual pipeline class name in pipelines.py
-    # We'll define this properly later. For now, you can comment it out or leave as is.
-    # custom_settings = {
-    #    'ITEM_PIPELINES': {'jobs_project.pipelines.MongoPipeline': 300},
-    # }
-
-
     start_urls = [
         f'file://{os.path.abspath(os.path.join("jobs_project", "data", "s01.json"))}',
         f'file://{os.path.abspath(os.path.join("jobs_project", "data", "s02.json"))}',
     ]
 
-    # Scrapy uses start_urls class attribute in its default start_requests 
-    # method to automatically generate the initial requests, 
-    # calling the parse method for each response.
-
     def parse(self, response):
-        # Extract the source filename from the URL for reference
         source_file = response.url.split('/')[-1]
         self.logger.info(f"Processing file: {source_file}")
-
         try:
-            # Load the JSON data from the response body
             data = json.loads(response.text)
         except json.JSONDecodeError as e:
             self.logger.error(f"Error decoding JSON from {source_file}: {e}")
-            return # Stop processing this file if JSON is invalid we could improve this?
+            return
 
-        # Check if 'jobs' key exists and is a list
         if 'jobs' not in data or not isinstance(data.get('jobs'), list):
              self.logger.error(f"'jobs' key not found or not a list in {source_file}")
-             return # Stop processing this file
+             return
 
-        # Loop over each job entry in the 'jobs' array
         for job_entry in data.get('jobs', []):
-             # Check if 'data' key exists within the job entry
              if 'data' in job_entry:
                 job_data = job_entry['data']
                 item = JobsProjectItem()
 
-                # Populate the item fields from the job_data dictionary
-                # Use .get(key, default_value) to avoid errors if a key is missing
+                # --- Populate standard fields ---
                 item['req_id'] = job_data.get('req_id')
                 item['title'] = job_data.get('title')
                 item['description'] = job_data.get('description')
@@ -60,11 +42,39 @@ class JobSpider(scrapy.Spider):
                 item['latitude'] = job_data.get('latitude')
                 item['longitude'] = job_data.get('longitude')
                 item['apply_url'] = job_data.get('apply_url')
-                item['update_date'] = job_data.get('update_date')
-                item['create_date'] = job_data.get('create_date')
                 item['source_file'] = source_file # Store which file it came from
 
-                # Yield the populated item
+                # --- Parse and assign date fields ---
+                create_date_str = job_data.get('create_date')
+                update_date_str = job_data.get('update_date')
+
+                # Define the expected format string including timezone
+                # %z handles formats like +0000 or -0500
+                date_format = "%Y-%m-%dT%H:%M:%S%z"
+
+                try:
+                    if create_date_str:
+                        # Use strptime with the defined format
+                        item['create_date'] = datetime.strptime(create_date_str, date_format)
+                    else:
+                        item['create_date'] = None # Handle missing dates
+                except (ValueError, TypeError) as e:
+                    # Log the specific string and error
+                    self.logger.warning(f"Could not parse create_date '{create_date_str}' with format '{date_format}': {e}")
+                    item['create_date'] = None # Assign None if parsing fails
+
+                try:
+                    if update_date_str:
+                        # Use strptime with the defined format
+                        item['update_date'] = datetime.strptime(update_date_str, date_format)
+                    else:
+                        item['update_date'] = None
+                except (ValueError, TypeError) as e:
+                    # Log the specific string and error
+                    self.logger.warning(f"Could not parse update_date '{update_date_str}' with format '{date_format}': {e}")
+                    item['update_date'] = None
+
+                # --- Yield the item ---
                 yield item
              else:
                 self.logger.warning(f"Skipping job entry in {source_file} due to missing 'data' key: {job_entry}")

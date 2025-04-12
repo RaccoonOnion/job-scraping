@@ -7,6 +7,7 @@ services:
     # This allows for live code changes without rebuilding the image during development
     volumes:
       - .:/usr/src/app
+      - ./docker-logs/app:/usr/src/app/logs
     # Define environment variables needed by the application
     environment:
       # Use mongodb://mongo... because 'mongo' is the service name below

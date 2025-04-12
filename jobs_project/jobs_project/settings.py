@@ -95,6 +95,18 @@ ITEM_PIPELINES = {
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = "scrapy.extensions.httpcache.FilesystemCacheStorage"
 
+# Set the minimum logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+# INFO hides DEBUG messages, WARNING hides INFO and DEBUG messages.
+LOG_LEVEL = 'INFO'
+
+# Enable log file logging
+LOG_ENCODING = 'utf-8'
+LOG_FILE = '/usr/src/app/logs/scrapy.log' # Log file path inside the container
+
+# If LOG_FILE is set, LOG_STDOUT defaults to False.
+# If you want logs BOTH on screen AND in the file, uncomment this:
+# LOG_STDOUT = True
+
 # Set settings whose default value is deprecated to a future-proof value
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = "utf-8"
