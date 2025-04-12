@@ -62,9 +62,16 @@ ROBOTSTXT_OBEY = True
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    "jobs_project.pipelines.JobsProjectPipeline": 300,
-#}
+ITEM_PIPELINES = {
+   "jobs_project.pipelines.MongoPipeline": 300, # Make sure the path matches your class
+#    "jobs_project.pipelines.AnotherPipeline": 400, # Example if you add more
+}
+
+# You might also want to set environment variables here if not using docker-compose env vars
+# import os
+# os.environ['MONGO_URI'] = 'mongodb://mongo:27017/'
+# os.environ['MONGO_DB_NAME'] = 'jobs_db'
+# os.environ['MONGO_COLLECTION'] = 'raw_jobs'
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
