@@ -4,8 +4,6 @@
 
 * **Link:** [YouTube Video Demo: Check it out!](https://youtu.be/kXQI1XvLFTc)
 
-*(Please replace the placeholder above with the actual link to your ~2 minute demo video as required by the project description*
-
 ## Introduction
 
 This project implements a data ingestion pipeline using Scrapy, MongoDB, Redis, and Docker Compose. The goal is to scrape job data from local JSON files, deduplicate items using Redis, store the unique data in a MongoDB database, and provide a script to query the stored data and export it to a CSV file.
